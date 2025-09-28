@@ -1,0 +1,34 @@
+# Core
+numpy
+pandas
+scikit-learn
+joblib
+pydantic
+pyyaml
+
+# API
+fastapi
+uvicorn
+python-multipart
+
+# Deep learning for disease classification
+tensorflow
+pillow
+
+# Optional: experiments and visuals
+matplotlib
+
+# Database
+pymongo
+
+# Chatbot dependencies
+nltk
+sentence-transformers
+requests
+
+# LLaMA/Transformer dependencies
+transformers
+torch
+datasets
+accelerate
+bitsandbytes
