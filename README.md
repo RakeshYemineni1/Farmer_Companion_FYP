@@ -66,7 +66,6 @@ DB_PORT=5432
 uvicorn src.api.main:app --reload
 ```
 
-The API will be available at `http://127.0.0.1:8000`
 
 ### Frontend Setup
 
@@ -85,7 +84,6 @@ npm install
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
 
 ## 🎯 Usage
 
