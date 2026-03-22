@@ -4,11 +4,13 @@ import Login from './components/Login';
 import TranslatedText from './components/TranslatedText';
 import ComingSoon from './components/ComingSoon';
 import ChatBot from './components/ChatBot';
+import { useAuth } from './context/AuthContext';
+import api from './services/api';
 
 
 
 const App = () => {
-  const [user, setUser] = useState(null);
+  const { user, login, logout, updateLanguage } = useAuth();
   const [languages, setLanguages] = useState({});
   const [translations, setTranslations] = useState({});
   const [activeTab, setActiveTab] = useState('crop');
@@ -20,31 +22,23 @@ const App = () => {
     return localStorage.getItem('krishisaathi_show_chat') === 'true';
   });
 
-  // Save chat visibility state
   useEffect(() => {
     localStorage.setItem('krishisaathi_show_chat', showChatBot.toString());
   }, [showChatBot]);
 
-  // Form states
   const [cropForm, setCropForm] = useState({
     N: '', P: '', K: '', temperature: '', humidity: '', ph: '', rainfall: ''
   });
-  
+
   const [fertForm, setFertForm] = useState({
     temperature: '', humidity: '', moisture: '', soil_type: '', crop_type: '', N: '', P: '', K: ''
   });
-  
-  const [diseaseImage, setDiseaseImage] = useState(null);
 
-  const API_BASE = 'http://127.0.0.1:8000';
+  const [diseaseImage, setDiseaseImage] = useState(null);
 
   useEffect(() => {
     fetchLanguages();
     fetchTranslations('en');
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
   }, []);
 
   useEffect(() => {
@@ -57,8 +51,7 @@ const App = () => {
 
   const fetchLanguages = async () => {
     try {
-      const response = await fetch(`${API_BASE}/languages`);
-      const data = await response.json();
+      const { data } = await api.get('/languages');
       setLanguages(data);
     } catch (error) {
       console.error('Failed to fetch languages:', error);
@@ -67,38 +60,27 @@ const App = () => {
 
   const fetchTranslations = async (language) => {
     try {
-      const response = await fetch(`${API_BASE}/translations/${language}`);
-      const data = await response.json();
+      const { data } = await api.get(`/translations/${language}`);
       setTranslations(data);
     } catch (error) {
       console.error('Failed to fetch translations:', error);
     }
   };
 
-  const handleLogin = (userData) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
+  const handleLogin = (userData, token) => {
+    login(userData, token);
   };
 
   const handleLogout = () => {
-    setUser(null);
+    logout();
     setResult(null);
-    localStorage.removeItem('user');
   };
 
   const changeLanguage = async (newLanguage) => {
     try {
-      const response = await fetch(`${API_BASE}/auth/language`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user.username, language: newLanguage })
-      });
-      if (response.ok) {
-        const updatedUser = {...user, language: newLanguage};
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        fetchTranslations(newLanguage);
-      }
+      await api.put('/auth/language', { language: newLanguage });
+      updateLanguage(newLanguage);
+      fetchTranslations(newLanguage);
     } catch (error) {
       console.error('Failed to update language:', error);
     }
@@ -119,29 +101,18 @@ const App = () => {
   const handleCropSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/predict/crop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          N: parseFloat(cropForm.N),
-          P: parseFloat(cropForm.P),
-          K: parseFloat(cropForm.K),
-          temperature: parseFloat(cropForm.temperature),
-          humidity: parseFloat(cropForm.humidity),
-          ph: parseFloat(cropForm.ph),
-          rainfall: parseFloat(cropForm.rainfall)
-        })
+      const { data } = await api.post('/predict/crop', {
+        N: parseFloat(cropForm.N),
+        P: parseFloat(cropForm.P),
+        K: parseFloat(cropForm.K),
+        temperature: parseFloat(cropForm.temperature),
+        humidity: parseFloat(cropForm.humidity),
+        ph: parseFloat(cropForm.ph),
+        rainfall: parseFloat(cropForm.rainfall),
       });
-      const data = await response.json();
-      if (data.success) {
-        setResult(data.data);
-      } else {
-        setResult({ error: data.error });
-      }
-      console.log('API Response for Crop:', data);
+      setResult(data.success ? data.data : { error: data.error });
     } catch (error) {
       setResult({ error: 'Failed to get prediction' });
-      console.error('API Error:', error);
     }
     setLoading(false);
   };
@@ -149,56 +120,33 @@ const App = () => {
   const handleFertSubmit = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/predict/fertilizer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          temperature: parseFloat(fertForm.temperature),
-          humidity: parseFloat(fertForm.humidity),
-          moisture: parseFloat(fertForm.moisture),
-          soil_type: fertForm.soil_type,
-          crop_type: fertForm.crop_type,
-          N: parseFloat(fertForm.N),
-          P: parseFloat(fertForm.P),
-          K: parseFloat(fertForm.K)
-        })
+      const { data } = await api.post('/predict/fertilizer', {
+        temperature: parseFloat(fertForm.temperature),
+        humidity: parseFloat(fertForm.humidity),
+        moisture: parseFloat(fertForm.moisture),
+        soil_type: fertForm.soil_type,
+        crop_type: fertForm.crop_type,
+        N: parseFloat(fertForm.N),
+        P: parseFloat(fertForm.P),
+        K: parseFloat(fertForm.K),
       });
-      const data = await response.json();
-      if (data.success) {
-        setResult(data.data);
-      } else {
-        setResult({ error: data.error });
-      }
-      console.log('API Response for Fertilizer:', data);
+      setResult(data.success ? data.data : { error: data.error });
     } catch (error) {
       setResult({ error: 'Failed to get prediction' });
-      console.error('API Error:', error);
     }
     setLoading(false);
   };
 
   const handleDiseaseSubmit = async () => {
     if (!diseaseImage) return;
-    
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', diseaseImage);
-      
-      const response = await fetch(`${API_BASE}/predict/disease`, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await response.json();
-      if (data.success) {
-        setResult(data.data);
-      } else {
-        setResult({ error: data.error });
-      }
-      console.log('API Response for Disease:', data);
+      const { data } = await api.post('/predict/disease', formData);
+      setResult(data.success ? data.data : { error: data.error });
     } catch (error) {
       setResult({ error: 'Failed to get prediction' });
-      console.error('API Error:', error);
     }
     setLoading(false);
   };
@@ -565,7 +513,7 @@ const App = () => {
                         onChange={(e) => setFertForm({...fertForm, crop_type: e.target.value})}
                       >
                         <option value="">Select crop</option>
-                        <option value="Rice">Rice</option>
+                        <option value="Paddy">Rice (Paddy)</option>
                         <option value="Wheat">Wheat</option>
                         <option value="Maize">Maize</option>
                         <option value="Sugarcane">Sugarcane</option>

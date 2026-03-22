@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, Globe, Mail, Leaf, ArrowRight } from 'lucide-react';
+import api from '../services/api';
 
 const Login = ({ onLogin, languages, translations }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,25 +16,26 @@ const Login = ({ onLogin, languages, translations }) => {
     e.preventDefault();
     setIsLoading(true);
     const endpoint = isLogin ? '/auth/login' : '/auth/register';
-    const payload = isLogin 
+    const payload = isLogin
       ? { username: formData.username, password: formData.password }
       : formData;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      const data = await response.json();
-      if (response.ok) {
-        onLogin(data.user || { username: formData.username, language: formData.language });
+      const { data } = await api.post(endpoint, payload);
+      if (isLogin) {
+        // Pass both user object and JWT token up to parent
+        onLogin(
+          data.user || { username: formData.username, language: formData.language },
+          data.access_token
+        );
       } else {
-        alert(data.detail);
+        // Auto-switch to login after successful registration
+        alert('Registered successfully! Please log in.');
+        setIsLogin(true);
+        setFormData({ username: formData.username, email: '', password: '', language: 'en' });
       }
     } catch (error) {
-      alert('Connection error');
+      alert(error.response?.data?.detail || 'Connection error. Please try again.');
     } finally {
       setIsLoading(false);
     }

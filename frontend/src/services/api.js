@@ -1,39 +1,30 @@
-export async function getCropRecommendation(data) {
-try {
-const res = await fetch("http://localhost:8000/crop", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(data),
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
+  timeout: 15000,
 });
-return await res.json();
-} catch (err) {
-return { error: "Failed to fetch crop recommendation" };
-}
-}
 
-
-export async function getFertilizerRecommendation(data) {
-try {
-const res = await fetch("http://localhost:8000/fertilizer", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(data),
+// Attach JWT token to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
-return await res.json();
-} catch (err) {
-return { error: "Failed to fetch fertilizer recommendation" };
-}
-}
 
+// Auto-logout on 401
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+    return Promise.reject(err);
+  }
+);
 
-export async function getDiseasePrediction(formData) {
-try {
-const res = await fetch("http://localhost:8000/disease", {
-method: "POST",
-body: formData,
-});
-return await res.json();
-} catch (err) {
-return { error: "Failed to detect disease" };
-}
-}
+export default api;

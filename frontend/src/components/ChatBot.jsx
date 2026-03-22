@@ -1,69 +1,66 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, ArrowLeft, Mic, MicOff, Volume2, VolumeX, Languages } from 'lucide-react';
+import { Send, Bot, User, ArrowLeft, Mic, MicOff, Volume2, VolumeX, Languages, ImagePlus, X } from 'lucide-react';
 import TranslatedText from './TranslatedText';
+import api from '../services/api';
 
 const ChatBot = ({ onBack, user }) => {
-  // Load messages from localStorage or use default
   const loadMessages = () => {
     const saved = localStorage.getItem('krishisaathi_chat_messages');
     if (saved) {
       try {
-        return JSON.parse(saved).map(msg => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
+        return JSON.parse(saved).map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) }));
       } catch (e) {
         console.error('Error loading messages:', e);
       }
     }
-    return [
-      {
-        id: 1,
-        text: "Hello! I'm KrishiSaathi, your AI farming assistant. Ask me about soil management, crop recommendations, fertilizers, organic farming, or any agricultural questions!",
-        sender: 'bot',
-        timestamp: new Date()
-      }
-    ];
+    return [{
+      id: 1,
+      text: "Hello! I'm KrishiSaathi LLaMA Assistant, your AI farming companion. Ask me anything about crops, soil, fertilizers, diseases, or upload a plant image for analysis!",
+      sender: 'bot',
+      timestamp: new Date()
+    }];
   };
 
+  const sendMessageRef = useRef(null);
   const [messages, setMessages] = useState(loadMessages);
   const [inputMessage, setInputMessage] = useState('');
+  const [attachedImage, setAttachedImage] = useState(null); // { file, previewUrl }
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('english');
   const [recognition, setRecognition] = useState(null);
-  const [speechSynthesis, setSpeechSynthesis] = useState(null);
+  const [speechSynthesisObj, setSpeechSynthesisObj] = useState(null);
   const messagesEndRef = useRef(null);
-  const API_BASE = 'http://127.0.0.1:8000';
+  const imageInputRef = useRef(null);
 
   const languages = {
-    'hindi': { name: 'हिंदी', code: 'hi-IN' },
-    'bengali': { name: 'বাংলা', code: 'bn-IN' },
-    'telugu': { name: 'తెలుగు', code: 'te-IN' },
-    'marathi': { name: 'मराठी', code: 'mr-IN' },
-    'tamil': { name: 'தமிழ்', code: 'ta-IN' },
-    'gujarati': { name: 'ગુજરાતી', code: 'gu-IN' },
-    'kannada': { name: 'ಕನ್ನಡ', code: 'kn-IN' },
-    'malayalam': { name: 'മലയാളം', code: 'ml-IN' },
-    'punjabi': { name: 'ਪੰਜਾਬੀ', code: 'pa-IN' },
-    'english': { name: 'English', code: 'en-IN' }
+    'english':   { name: 'English',    code: 'en-IN' },
+    'hindi':     { name: 'हिंदी',       code: 'hi-IN' },
+    'bengali':   { name: 'বাংলা',       code: 'bn-IN' },
+    'telugu':    { name: 'తెలుగు',      code: 'te-IN' },
+    'marathi':   { name: 'मराठी',       code: 'mr-IN' },
+    'tamil':     { name: 'தமிழ்',       code: 'ta-IN' },
+    'gujarati':  { name: 'ગુજરાતી',     code: 'gu-IN' },
+    'kannada':   { name: 'ಕನ್ನಡ',       code: 'kn-IN' },
+    'malayalam': { name: 'മലയാളം',      code: 'ml-IN' },
+    'punjabi':   { name: 'ਪੰਜਾਬੀ',      code: 'pa-IN' },
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   // Save messages to localStorage whenever messages change
   useEffect(() => {
-    localStorage.setItem('krishisaathi_chat_messages', JSON.stringify(messages));
+    // Don't serialize blob URLs — they're revoked after use
+    const toSave = messages.map(({ imagePreview, ...rest }) => rest);
+    localStorage.setItem('krishisaathi_chat_messages', JSON.stringify(toSave));
     scrollToBottom();
   }, [messages]);
 
   const clearChat = () => {
     const defaultMessage = {
       id: 1,
-      text: "Hello! I'm KrishiSaathi, your AI farming assistant. Ask me about soil management, crop recommendations, fertilizers, organic farming, or any agricultural questions!",
+      text: "Hello! I'm KrishiSaathi LLaMA Assistant, your AI farming companion. Ask me anything about crops, soil, fertilizers, diseases, or upload a plant image for analysis!",
       sender: 'bot',
       timestamp: new Date()
     };
@@ -71,157 +68,107 @@ const ChatBot = ({ onBack, user }) => {
     localStorage.setItem('krishisaathi_chat_messages', JSON.stringify([defaultMessage]));
   };
 
+  // ── Speech init ──────────────────────────────────────────────────────────
   useEffect(() => {
-    // Initialize Web Speech API
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognition();
-      
-      recognitionInstance.continuous = false;
-      recognitionInstance.interimResults = false;
-      recognitionInstance.maxAlternatives = 1;
-      
-      recognitionInstance.onresult = handleSpeechResult;
-      recognitionInstance.onerror = handleSpeechError;
-      recognitionInstance.onend = () => setIsListening(false);
-      
-      setRecognition(recognitionInstance);
-    }
-
-    // Initialize Speech Synthesis
-    if ('speechSynthesis' in window) {
-      setSpeechSynthesis(window.speechSynthesis);
-      
-      // Load voices
-      const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
-        
-        // Check which Indian languages have voices
-        const indianLangs = ['hi', 'bn', 'te', 'ta', 'mr', 'gu', 'kn', 'ml', 'pa'];
-        const availableIndianVoices = {};
-        
-        indianLangs.forEach(lang => {
-          const voice = voices.find(v => v.lang.startsWith(lang));
-          if (voice) {
-            availableIndianVoices[lang] = voice.name;
-          }
-        });
-        
-        console.log('Available Indian language voices:', availableIndianVoices);
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const inst = new SR();
+      inst.continuous = false;
+      inst.interimResults = false;
+      inst.maxAlternatives = 1;
+      inst.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        setInputMessage(transcript);
+        sendMessageRef.current?.(transcript);
       };
-      
-      if (window.speechSynthesis.getVoices().length > 0) {
-        loadVoices();
-      } else {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-      }
+      inst.onerror = () => setIsListening(false);
+      inst.onend = () => setIsListening(false);
+      setRecognition(inst);
     }
-  }, []);
-
-  const handleSpeechResult = async (event) => {
-    const transcript = event.results[0][0].transcript;
-    setInputMessage(transcript);
-    await sendSpeechMessage(transcript);
-  };
-
-  const handleSpeechError = (event) => {
-    console.error('Speech recognition error:', event.error);
-    setIsListening(false);
-  };
+    if ('speechSynthesis' in window) {
+      setSpeechSynthesisObj(window.speechSynthesis);
+      const load = () => window.speechSynthesis.getVoices();
+      window.speechSynthesis.getVoices().length > 0 ? load() : (window.speechSynthesis.onvoiceschanged = load);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startListening = () => {
-    if (recognition) {
-      const langCode = languages[selectedLanguage]?.code || 'en-IN';
-      recognition.lang = langCode;
-      recognition.start();
-      setIsListening(true);
-    }
+    if (!recognition) return;
+    recognition.lang = languages[selectedLanguage]?.code || 'en-IN';
+    recognition.start();
+    setIsListening(true);
   };
 
-  const stopListening = () => {
-    if (recognition) {
-      recognition.stop();
-      setIsListening(false);
-    }
-  };
+  const stopListening = () => { recognition?.stop(); setIsListening(false); };
 
   const speakText = (text, language = selectedLanguage) => {
-    if (speechSynthesis && text) {
-      speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      const langCode = languages[language]?.code || 'en-IN';
-      const baseLang = langCode.split('-')[0];
-      
-      // Voice priority mapping for Indian languages
-      const voiceMappings = {
-        'hi': ['hi-IN', 'hi', 'en-IN', 'en-US'],
-        'bn': ['bn-IN', 'bn', 'hi-IN', 'en-IN'],
-        'te': ['te-IN', 'te', 'hi-IN', 'en-IN'],
-        'ta': ['ta-IN', 'ta', 'hi-IN', 'en-IN'],
-        'mr': ['mr-IN', 'mr', 'hi-IN', 'en-IN'],
-        'gu': ['gu-IN', 'gu', 'hi-IN', 'en-IN'],
-        'kn': ['kn-IN', 'kn', 'hi-IN', 'en-IN'],
-        'ml': ['ml-IN', 'ml', 'hi-IN', 'en-IN'],
-        'pa': ['pa-IN', 'pa', 'hi-IN', 'en-IN'],
-        'en': ['en-IN', 'en-US', 'en-GB']
-      };
-      
-      const voices = speechSynthesis.getVoices();
-      const priorities = voiceMappings[baseLang] || ['en-IN', 'en-US'];
-      
-      let selectedVoice = null;
-      for (const priority of priorities) {
-        selectedVoice = voices.find(v => v.lang === priority);
-        if (selectedVoice) break;
-      }
-      
-      // Final fallback to any available voice
-      if (!selectedVoice) {
-        selectedVoice = voices.find(v => v.lang.startsWith(baseLang)) ||
-                       voices.find(v => v.lang.startsWith('en')) ||
-                       voices[0];
-      }
-      
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        utterance.lang = selectedVoice.lang;
-        console.log(`Using voice: ${selectedVoice.name} (${selectedVoice.lang}) for text: ${text.substring(0, 50)}...`);
-      } else {
-        utterance.lang = langCode;
-        console.log(`No specific voice found, using default for: ${langCode}`);
-      }
-      
-      utterance.rate = 0.8;
-      utterance.pitch = 1;
-      
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = (e) => {
-        console.error('Speech synthesis error:', e);
-        setIsSpeaking(false);
-      };
-      
-      speechSynthesis.speak(utterance);
+    if (!speechSynthesisObj || !text) return;
+    speechSynthesisObj.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const langCode = languages[language]?.code || 'en-IN';
+    const baseLang = langCode.split('-')[0];
+    const voiceMappings = {
+      'hi': ['hi-IN', 'hi', 'en-IN', 'en-US'],
+      'bn': ['bn-IN', 'bn', 'hi-IN', 'en-IN'],
+      'te': ['te-IN', 'te', 'hi-IN', 'en-IN'],
+      'ta': ['ta-IN', 'ta', 'hi-IN', 'en-IN'],
+      'mr': ['mr-IN', 'mr', 'hi-IN', 'en-IN'],
+      'gu': ['gu-IN', 'gu', 'hi-IN', 'en-IN'],
+      'kn': ['kn-IN', 'kn', 'hi-IN', 'en-IN'],
+      'ml': ['ml-IN', 'ml', 'hi-IN', 'en-IN'],
+      'pa': ['pa-IN', 'pa', 'hi-IN', 'en-IN'],
+      'en': ['en-IN', 'en-US', 'en-GB'],
+    };
+    const voices = speechSynthesisObj.getVoices();
+    const priorities = voiceMappings[baseLang] || ['en-IN', 'en-US'];
+    let selectedVoice = null;
+    for (const p of priorities) {
+      selectedVoice = voices.find(v => v.lang === p);
+      if (selectedVoice) break;
     }
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => v.lang.startsWith(baseLang))
+        || voices.find(v => v.lang.startsWith('en'))
+        || voices[0];
+    }
+    if (selectedVoice) { utterance.voice = selectedVoice; utterance.lang = selectedVoice.lang; }
+    else { utterance.lang = langCode; }
+    utterance.rate = 0.8;
+    utterance.pitch = 1;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    speechSynthesisObj.speak(utterance);
   };
 
-  const stopSpeaking = () => {
-    if (speechSynthesis) {
-      speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
+  const stopSpeaking = () => { speechSynthesisObj?.cancel(); setIsSpeaking(false); };
+
+  // ── Image attachment ─────────────────────────────────────────────────────
+  const handleImageAttach = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAttachedImage({ file, previewUrl: URL.createObjectURL(file) });
+    e.target.value = '';
   };
 
+  const removeImage = () => {
+    if (attachedImage?.previewUrl) URL.revokeObjectURL(attachedImage.previewUrl);
+    setAttachedImage(null);
+  };
+
+  // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = async (messageText = inputMessage) => {
     if (!messageText.trim() || isLoading) return;
+
+    const imageToSend = attachedImage;
+    setAttachedImage(null);
 
     const userMessage = {
       id: Date.now(),
       text: messageText,
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      imagePreview: imageToSend?.previewUrl || null,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -229,76 +176,50 @@ const ChatBot = ({ onBack, user }) => {
     setIsLoading(true);
 
     try {
-      const endpoint = selectedLanguage === 'english' ? '/chat' : '/api/speech/translate';
-      const requestBody = selectedLanguage === 'english' 
-        ? { message: messageText, user_id: user?.username || 'anonymous' }
-        : { text: messageText, language: selectedLanguage };
+      const formData = new FormData();
+      formData.append('message', messageText);
+      formData.append('language', selectedLanguage);
+      if (imageToSend?.file) formData.append('image', imageToSend.file);
 
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
+      const { data } = await api.post('/chat', formData);
+      const botResponseText = data.success
+        ? data.response
+        : "Sorry, I'm having trouble right now. Please try again.";
 
-      const data = await response.json();
-      
-      let botResponseText;
-      if (selectedLanguage === 'english') {
-        botResponseText = data.success ? data.response : "Sorry, I'm having trouble right now. Please try again.";
-      } else {
-        botResponseText = data.translated_response || data.english_response || "Sorry, I'm having trouble right now. Please try again.";
-      }
-      
-      const botMessage = {
+      setMessages(prev => [...prev, {
         id: Date.now() + 1,
         text: botResponseText,
         sender: 'bot',
-        timestamp: new Date()
-      };
+        timestamp: new Date(),
+      }]);
 
-      setMessages(prev => [...prev, botMessage]);
-      
-      // Speak the response in the selected language
-      const textToSpeak = selectedLanguage !== 'english' ? 
-        (data.translated_response || botResponseText) : botResponseText;
-      
-      console.log('Speaking text:', textToSpeak, 'in language:', selectedLanguage);
-      speakText(textToSpeak, selectedLanguage);
-      
-    } catch (error) {
-      const errorMessage = {
+      speakText(botResponseText, selectedLanguage);
+    } catch {
+      setMessages(prev => [...prev, {
         id: Date.now() + 1,
         text: "Sorry, I couldn't connect to the server. Please check your connection and try again.",
         sender: 'bot',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+        timestamp: new Date(),
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const sendSpeechMessage = async (transcript) => {
-    await sendMessage(transcript);
-  };
-
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  useEffect(() => { sendMessageRef.current = sendMessage; });
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-green-100 p-3 sm:p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4">
-            <button
-              onClick={onBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+            <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -307,11 +228,9 @@ const ChatBot = ({ onBack, user }) => {
               </div>
               <div>
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-                  <TranslatedText text="KrishiSaathi AI" language={user?.language} />
+                  <TranslatedText text="KrishiSaathi LLaMA Assistant" language={user?.language} />
                 </h1>
-                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
-                  <TranslatedText text="Your intelligent farming companion" language={user?.language} />
-                </p>
+
               </div>
             </div>
           </div>
@@ -326,41 +245,41 @@ const ChatBot = ({ onBack, user }) => {
 
       {/* Chat Container */}
       <div className="max-w-4xl mx-auto p-2 sm:p-4 h-[calc(100vh-140px)] flex flex-col">
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto mb-3 sm:mb-4 space-y-3 sm:space-y-4 px-1">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`flex items-start gap-2 sm:gap-3 max-w-[85%] sm:max-w-[80%] ${message.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  message.sender === 'user' 
-                    ? 'bg-blue-500' 
-                    : 'bg-gradient-to-r from-green-500 to-blue-500'
+                  message.sender === 'user' ? 'bg-blue-500' : 'bg-gradient-to-r from-green-500 to-blue-500'
                 }`}>
-                  {message.sender === 'user' ? (
-                    <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
-                  ) : (
-                    <Bot className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
-                  )}
+                  {message.sender === 'user'
+                    ? <User className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                    : <Bot className="w-3 h-3 sm:w-4 sm:h-4 text-white" />}
                 </div>
                 <div className={`rounded-2xl p-3 sm:p-4 ${
                   message.sender === 'user'
                     ? 'bg-blue-500 text-white'
                     : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
                 }`}>
+                  {/* Show attached image preview in user bubble */}
+                  {message.imagePreview && (
+                    <img
+                      src={message.imagePreview}
+                      alt="attached"
+                      className="rounded-lg mb-2 max-h-40 object-cover"
+                    />
+                  )}
                   <p className="whitespace-pre-wrap text-sm sm:text-base">{message.text}</p>
-                  <p className={`text-xs mt-2 ${
-                    message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
+                  <p className={`text-xs mt-2 ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
                     {message.timestamp.toLocaleTimeString()}
                   </p>
                 </div>
               </div>
             </div>
           ))}
-          
+
           {isLoading && (
             <div className="flex justify-start">
               <div className="flex items-start gap-2 sm:gap-3">
@@ -370,8 +289,8 @@ const ChatBot = ({ onBack, user }) => {
                 <div className="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 shadow-sm">
                   <div className="flex space-x-1">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
                 </div>
               </div>
@@ -385,7 +304,7 @@ const ChatBot = ({ onBack, user }) => {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
               <Languages className="text-green-600" size={16} />
-              <select 
+              <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className="px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-xs sm:text-sm"
@@ -395,53 +314,75 @@ const ChatBot = ({ onBack, user }) => {
                 ))}
               </select>
             </div>
-            
+
             <button
               onClick={isListening ? stopListening : startListening}
               className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 rounded-lg font-medium text-xs sm:text-sm ${
-                isListening 
-                  ? 'bg-red-500 text-white animate-pulse' 
-                  : 'bg-green-500 text-white hover:bg-green-600'
+                isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-green-500 text-white hover:bg-green-600'
               }`}
             >
               {isListening ? <MicOff size={14} /> : <Mic size={14} />}
               <span className="hidden sm:inline">{isListening ? 'Stop' : 'Speak'}</span>
             </button>
-            
+
             <button
-              onClick={isSpeaking ? stopSpeaking : null}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm ${
-                isSpeaking 
-                  ? 'bg-orange-500 text-white animate-pulse' 
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+              onClick={isSpeaking ? stopSpeaking : undefined}
               disabled={!isSpeaking}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm ${
+                isSpeaking ? 'bg-orange-500 text-white animate-pulse' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
             >
               {isSpeaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
               <span className="hidden sm:inline">{isSpeaking ? 'Stop Audio' : 'Audio'}</span>
             </button>
-            
+
             <button
-              onClick={() => {
-                const testText = selectedLanguage === 'hindi' ? 'नमस्ते किसान' :
-                                selectedLanguage === 'telugu' ? 'హలో రైతు' :
-                                selectedLanguage === 'tamil' ? 'வணக்கம் விவசாயி' :
-                                'Hello farmer';
-                speakText(testText, selectedLanguage);
-              }}
+              onClick={() => speakText(
+                selectedLanguage === 'hindi' ? 'नमस्ते किसान' :
+                selectedLanguage === 'telugu' ? 'హలో రైతు' :
+                selectedLanguage === 'tamil' ? 'வணக்கம் விவசாயி' : 'Hello farmer',
+                selectedLanguage
+              )}
               className="px-2 sm:px-3 py-1 sm:py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-xs sm:text-sm"
             >
               Test
             </button>
           </div>
           <div className="text-xs text-gray-500 mt-2 hidden sm:block">
-            Voice support varies by browser. Test button checks if your language works.
+            Voice support varies by browser. You can also attach plant images for AI analysis.
           </div>
         </div>
 
-        {/* Input */}
+        {/* Image preview strip */}
+        {attachedImage && (
+          <div className="bg-white rounded-xl border border-green-200 p-2 mb-2 flex items-center gap-3 shadow">
+            <img src={attachedImage.previewUrl} alt="preview" className="h-14 w-14 object-cover rounded-lg" />
+            <span className="text-sm text-gray-600 flex-1 truncate">{attachedImage.file.name}</span>
+            <button onClick={removeImage} className="text-red-500 hover:text-red-700">
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+        {/* Input bar */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 shadow-lg">
-          <div className="flex gap-2 sm:gap-3">
+          <div className="flex gap-2 sm:gap-3 items-end">
+            {/* Image attach button */}
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors flex-shrink-0"
+              title="Attach plant image for analysis"
+            >
+              <ImagePlus size={20} />
+            </button>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageAttach}
+            />
+
             <textarea
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
@@ -451,15 +392,17 @@ const ChatBot = ({ onBack, user }) => {
               rows="1"
               disabled={isLoading}
             />
+
             <button
               onClick={() => sendMessage()}
-              disabled={!inputMessage.trim() || isLoading}
+              disabled={(!inputMessage.trim() && !attachedImage) || isLoading}
               className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-2 sm:p-3 rounded-xl hover:from-green-600 hover:to-blue-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               <Send className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

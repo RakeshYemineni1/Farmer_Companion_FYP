@@ -1,0 +1,88 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+\begin{document}
+
+\title{KrishiSaathi: An AI-Powered Smart Farmer Companion for Intelligent Crop Management, Disease Detection, and Multilingual Agricultural Advisory}
+
+\author{
+\IEEEauthorblockN{Author Name}
+\IEEEauthorblockA{
+Department of Computer Science and Engineering\\
+Institution Name, City, Country\\
+email@institution.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+Agriculture remains the backbone of the Indian economy, employing over 50\% of the workforce and contributing significantly to national GDP. Yet the majority of smallholder farmers continue to make critical decisions regarding crop selection, fertilizer application, and disease management based on intuition and tradition rather than data-driven insights. This disconnect between available agricultural science and ground-level farming practice results in suboptimal yields, excessive input costs, and preventable crop losses. KrishiSaathi is a full-stack, AI-powered smart farmer companion designed to bridge this gap. The system integrates three machine learning models --- a Random Forest classifier for crop recommendation achieving 99.32\% accuracy, a Random Forest classifier for fertilizer suggestion achieving 100\% accuracy, and a MobileNetV2 convolutional neural network for plant disease detection --- with a conversational AI assistant powered by Google Gemini. The platform supports 15 Indian languages, provides voice interaction through the Web Speech API, and delivers real-time weather-based farming advisories. Built on a modern microservices architecture using FastAPI, MongoDB, React.js, and Docker, KrishiSaathi is designed for accessibility, scalability, and real-world deployment.
+\end{abstract}
+
+\begin{IEEEkeywords}
+precision agriculture, machine learning, crop recommendation, plant disease detection, fertilizer optimization, MobileNetV2, Random Forest, multilingual AI, smart farming, FastAPI
+\end{IEEEkeywords}
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+\subsection{The Crisis in Indian Agriculture}
+
+India is home to approximately 146 million farm holdings, the majority of which are smallholder farms of less than two hectares \cite{fao2022}. Despite the country's agricultural heritage and the diversity of its agro-climatic zones, Indian farming productivity per hectare remains significantly below global averages. The Food and Agriculture Organization estimates that India loses between 15\% and 25\% of its annual crop yield to preventable causes including poor crop selection, incorrect fertilizer application, and undetected or mismanaged plant diseases \cite{worldbank2020}. These losses translate directly into reduced farmer income, food insecurity, and economic instability in rural communities.
+
+The root cause of this productivity gap is not a lack of agricultural knowledge. Decades of research by institutions such as the Indian Council of Agricultural Research (ICAR) and state agricultural universities have produced extensive datasets, guidelines, and best practices. The problem is one of accessibility and translation: this knowledge rarely reaches the farmer at the right time, in the right language, and in a form that is actionable under field conditions. A farmer in rural Maharashtra facing an unfamiliar leaf discoloration on her wheat crop has no practical mechanism to quickly identify the disease, understand its severity, and receive treatment guidance in Marathi.
+
+\subsection{Limitations of Existing Digital Agriculture Tools}
+
+Several digital agriculture initiatives have been launched in India over the past decade, including the Kisan Suvidha mobile application, the mKisan SMS portal, and various state-level advisory services. While these platforms have improved information reach, they share a common set of limitations.
+
+First, they are largely static and informational rather than intelligent and personalized. They provide general guidelines rather than recommendations tailored to a specific farmer's soil composition, local climate, and current crop stage. Second, they require farmers to navigate complex interfaces or interpret technical content that assumes a level of agricultural literacy that many smallholder farmers do not possess. Third, they offer limited or no support for regional languages beyond Hindi and English, effectively excluding hundreds of millions of farmers who are more comfortable in Telugu, Tamil, Kannada, Bengali, or Gujarati \cite{census2011}.
+
+Machine learning and artificial intelligence offer a fundamentally different paradigm. Rather than presenting static information, ML-based systems can ingest a farmer's specific inputs --- soil nutrient levels, temperature, humidity, rainfall --- and produce a precise, personalized recommendation. Computer vision models can analyze a photograph of a diseased plant and identify the pathogen with accuracy comparable to trained agronomists. Large language models can conduct a natural, conversational dialogue with a farmer in their native language, answering follow-up questions and providing contextual guidance.
+
+\subsection{Motivation Behind the System}
+
+KrishiSaathi --- derived from the Hindi words \textit{Krishi} (agriculture) and \textit{Saathi} (companion) --- was conceived as a response to the specific, practical needs of Indian smallholder farmers. The name reflects the design philosophy: not a tool that farmers must learn to use, but a companion that meets them where they are, speaks their language, and provides guidance that is immediately applicable in the field.
+
+The system was designed around three core observations. First, the most impactful decisions a farmer makes --- what to plant, how to fertilize, and how to respond to disease --- are also the decisions most amenable to data-driven optimization. Second, the barrier to adoption of digital tools in rural India is primarily linguistic and interface-related, not infrastructure-related, as smartphone penetration in rural India exceeded 25\% in 2023 \cite{trai2023}. Third, the convergence of accessible machine learning frameworks, large language model APIs, and modern web technologies makes it possible to build a sophisticated, production-ready agricultural intelligence platform at minimal cost.
+
+\subsection{Contributions of This Work}
+
+This paper makes the following contributions:
+
+\begin{itemize}
+    \item Design and implementation of an end-to-end agricultural intelligence platform integrating three distinct ML models with a conversational AI assistant.
+    \item A crop recommendation engine using Random Forest classification trained on a comprehensive soil and climate dataset covering 22 crop varieties, achieving 99.32\% test accuracy.
+    \item A fertilizer recommendation system using Random Forest classification with manual one-hot encoding for categorical features, achieving 100\% test accuracy on 7 fertilizer classes.
+    \item A plant disease detection module using a fine-tuned MobileNetV2 CNN capable of classifying plant health status and disease severity from leaf images.
+    \item A multilingual AI chatbot powered by Google Gemini with a three-key fallback architecture ensuring high availability across 15 Indian languages.
+    \item A containerized microservices deployment using Docker Compose enabling reproducible, scalable deployment across environments.
+\end{itemize}
+
+\subsection{Organization of the Paper}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:literature} presents a review of related work in precision agriculture, plant disease detection, and agricultural chatbot systems. Section~\ref{sec:architecture} describes the overall system architecture and datasets used. Section~\ref{sec:proposed} details the proposed solution including the design of each module. Section~\ref{sec:implementation} covers the implementation specifics of the machine learning models, backend API, frontend interface, and deployment infrastructure. Section~\ref{sec:conclusion} concludes with a discussion of results, limitations, and future directions.
+
+% ============================================================
+\begin{thebibliography}{00}
+
+\bibitem{fao2022} Food and Agriculture Organization, ``The State of Food and Agriculture 2022,'' FAO, Rome, 2022.
+
+\bibitem{worldbank2020} World Bank Group, ``Future of Food: Harnessing Digital Technologies to Improve Food System Outcomes,'' World Bank, Washington DC, 2020.
+
+\bibitem{census2011} Office of the Registrar General of India, ``Census of India 2011: Language,'' Ministry of Home Affairs, New Delhi, 2011.
+
+\bibitem{trai2023} Telecom Regulatory Authority of India, ``Telecom Subscription Data,'' TRAI, New Delhi, 2023.
+
+\end{thebibliography}
+
+\end{document}
