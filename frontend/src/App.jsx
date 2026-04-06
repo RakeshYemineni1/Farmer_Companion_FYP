@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Leaf, Droplets, Bug, ChevronRight, TrendingUp, Shield, LogOut, Menu, X, MessageCircle } from 'lucide-react';
+import { Upload, Leaf, Droplets, Bug, ChevronRight, TrendingUp, Shield, LogOut, Menu, X, MessageCircle, CloudSun } from 'lucide-react';
 import Login from './components/Login';
 import TranslatedText from './components/TranslatedText';
 import ComingSoon from './components/ComingSoon';
@@ -35,6 +35,9 @@ const App = () => {
   });
 
   const [diseaseImage, setDiseaseImage] = useState(null);
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState(null);
 
   useEffect(() => {
     fetchLanguages();
@@ -97,6 +100,27 @@ const App = () => {
   if (showChatBot) {
     return <ChatBot onBack={() => setShowChatBot(false)} user={user} />;
   }
+
+  const handleWeatherFetch = () => {
+    setWeatherLoading(true);
+    setWeatherError(null);
+    setWeatherData(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const { data } = await api.get(`/weather/forecast?lat=${coords.latitude}&lon=${coords.longitude}`);
+          setWeatherData(data);
+        } catch {
+          setWeatherError('Failed to fetch weather data.');
+        }
+        setWeatherLoading(false);
+      },
+      () => {
+        setWeatherError('Location access denied. Please allow location to get weather.');
+        setWeatherLoading(false);
+      }
+    );
+  };
 
   const handleCropSubmit = async () => {
     setLoading(true);
@@ -289,7 +313,7 @@ const App = () => {
         {/* Navigation Tabs */}
         <div className="flex flex-wrap justify-center gap-4 mb-8">
           <button
-            onClick={() => { setActiveTab('crop'); setResult(null); }}
+            onClick={() => { setActiveTab('crop'); setResult(null); setWeatherData(null); }}
             className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
               activeTab === 'crop' 
                 ? 'bg-green-500 text-white shadow-lg' 
@@ -300,7 +324,7 @@ const App = () => {
             <TranslatedText text="Crop Recommendation" language={user?.language} />
           </button>
           <button
-            onClick={() => { setActiveTab('fertilizer'); setResult(null); }}
+            onClick={() => { setActiveTab('fertilizer'); setResult(null); setWeatherData(null); }}
             className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
               activeTab === 'fertilizer' 
                 ? 'bg-blue-500 text-white shadow-lg' 
@@ -311,7 +335,7 @@ const App = () => {
             <TranslatedText text="Fertilizer Recommendation" language={user?.language} />
           </button>
           <button
-            onClick={() => { setActiveTab('disease'); setResult(null); }}
+            onClick={() => { setActiveTab('disease'); setResult(null); setWeatherData(null); }}
             className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
               activeTab === 'disease' 
                 ? 'bg-orange-500 text-white shadow-lg' 
@@ -320,6 +344,17 @@ const App = () => {
           >
             <Bug className="w-5 h-5" />
             <TranslatedText text="Disease Detection" language={user?.language} />
+          </button>
+          <button
+            onClick={() => { setActiveTab('weather'); setResult(null); }}
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
+              activeTab === 'weather'
+                ? 'bg-sky-500 text-white shadow-lg'
+                : 'bg-white text-gray-700 hover:bg-sky-50 border border-sky-200'
+            }`}
+          >
+            <CloudSun className="w-5 h-5" />
+            <TranslatedText text="Weather Advisory" language={user?.language} />
           </button>
         </div>
 
@@ -563,6 +598,30 @@ const App = () => {
               </div>
             )}
 
+            {activeTab === 'weather' && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center">
+                    <CloudSun className="w-6 h-6 text-sky-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">Weather Advisory</h3>
+                    <p className="text-gray-600">7-day forecast with Gemini farming advice</p>
+                  </div>
+                </div>
+                <p className="text-gray-600 mb-6">Click below to fetch real-time weather for your current location and get AI-powered farming advisories.</p>
+                <button
+                  onClick={handleWeatherFetch}
+                  disabled={weatherLoading}
+                  className="w-full bg-gradient-to-r from-sky-500 to-sky-600 text-white py-3 px-6 rounded-lg hover:from-sky-600 hover:to-sky-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium cursor-pointer disabled:opacity-50"
+                >
+                  <CloudSun className="w-5 h-5" />
+                  {weatherLoading ? 'Fetching weather...' : 'Get Weather & Advisory'}
+                </button>
+                {weatherError && <p className="mt-4 text-red-500 text-sm">{weatherError}</p>}
+              </div>
+            )}
+
             {activeTab === 'disease' && (
               <div>
                 <div className="flex items-center gap-3 mb-6">
@@ -606,12 +665,33 @@ const App = () => {
               <TranslatedText text="Results & Insights" language={user?.language} />
             </h3>
             
-            {!result && (
+            {activeTab === 'weather' && weatherData && (
+              <div className="space-y-4">
+                <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
+                  <p className="font-semibold text-sky-800 mb-2">📍 {weatherData.location}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{weatherData.gemini_advisory}</p>
+                </div>
+                <div className="space-y-2">
+                  {weatherData.forecast.map((day, i) => (
+                    <div key={i} className="bg-white border border-sky-100 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-sm">
+                      <span className="font-medium text-gray-800 w-24">{day.date}</span>
+                      <span>🌡 {day.temp_min}–{day.temp_max}°C</span>
+                      <span>💧 {day.rain_mm}mm</span>
+                      <span>💨 {day.wind_kmh}km/h</span>
+                      <span>🌫 {day.humidity}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!(activeTab === 'weather' && weatherData) && !result && (
               <div className="text-center py-12">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   {activeTab === 'crop' && <Leaf className="w-10 h-10 text-gray-400" />}
                   {activeTab === 'fertilizer' && <Droplets className="w-10 h-10 text-gray-400" />}
                   {activeTab === 'disease' && <Bug className="w-10 h-10 text-gray-400" />}
+                  {activeTab === 'weather' && <CloudSun className="w-10 h-10 text-gray-400" />}
                 </div>
                 <p className="text-gray-500">
                   <TranslatedText text="Submit your data to get AI-powered recommendations" language={user?.language} />
