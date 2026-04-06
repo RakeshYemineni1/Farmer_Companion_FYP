@@ -16,6 +16,9 @@ empower farmers with data-driven decisions.
 -   User Authentication - Secure login and personalized experience\
 -   Responsive Design - Works seamlessly on desktop and mobile devices
 
+## System Architecture
+<img width="1165" height="989" alt="diagram-export-4-6-2026-1_22_02-PM" src="https://github.com/user-attachments/assets/cfd1d2c4-d5a2-4b8e-b70d-7109c7261f00" />
+
 ## Tech Stack
 
 ### Backend
